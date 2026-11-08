@@ -178,6 +178,38 @@ def install_packages():
         print('  [OK] HAProxy is already installed; keeping existing version.')
         return
     check_ubuntu_amd64()
+
+    # Offline DELTA has both uploaded DEBs pre-installed under this directory.
+    store = Path('/usr/local/lib/rclocall/packages')
+    package_files = [store / filename for filename, _, _ in PACKAGES]
+    if all(path.is_file() for path in package_files):
+        for path, (_, expected, _) in zip(package_files, PACKAGES):
+            if sha256(path) != expected:
+                raise RuntimeError(f'Offline SHA-256 mismatch: {path}')
+            pkg = run('dpkg-deb', '-f', str(path), 'Architecture',
+                      capture_output=True)
+            if pkg.stdout.strip() != 'amd64':
+                raise RuntimeError(f'Offline DEB architecture mismatch: {path}')
+        print('  [OK] Using bundled SHA256-verified HAProxy DEBs (no internet).')
+        try:
+            # Exactly the same local-DEB installation order requested by user.
+            # No apt update, GitHub fetch, or package repository access occurs.
+            run('dpkg', '-i', *map(str, package_files))
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                'Offline dpkg installation failed. Check the output for missing '
+                'dependencies. Ubuntu 24.04 amd64 with prerequisite system '
+                'packages installed is required; no online apt was attempted.'
+            ) from exc
+        return
+
+    if Path('/usr/local/lib/rclocall/.offline').exists():
+        missing = [str(path) for path in package_files if not path.is_file()]
+        raise RuntimeError(
+            'Offline HAProxy packages are missing: ' + ', '.join(missing) +
+            '. Reinstall the complete DELTA offline bundle.'
+        )
+
     with tempfile.TemporaryDirectory(prefix='delta-haproxy-') as directory:
         local_files = []
         for filename, checksum, mirror in PACKAGES:
@@ -185,8 +217,8 @@ def install_packages():
             print('  Downloading:', filename)
             fetch_package(filename, checksum, mirror, destination)
             local_files.append(str(destination))
-        # Installs the supplied exact DEBs, with dependency handling.
         run('apt-get', 'install', '-y', '--no-install-recommends', *local_files)
+
 
 
 def persist_config(ports, foreign_gre):
