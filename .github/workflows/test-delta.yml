@@ -1,0 +1,27 @@
+name: Test DELTA CLI and HAProxy Manager
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rclocall.py'
+      - 'haproxy_manager.py'
+      - 'install.sh'
+      - 'test_*.py'
+      - '.github/workflows/test-delta.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Python scripts compile
+        run: python3 -m py_compile rclocall.py haproxy_manager.py test_rclocall.py test_haproxy_manager.py
+      - name: Run DELTA and HAProxy tests
+        run: python3 -m unittest discover -p 'test_*.py' -v
+      - name: Verify shell installer syntax
+        run: bash -n install.sh
