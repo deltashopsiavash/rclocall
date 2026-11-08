@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RCLocalL: interactive, multi-peer IPv4 GRE tunnel manager for Ubuntu."""
+"""DELTA: interactive, multi-peer IPv4 GRE tunnel manager for Ubuntu."""
 
 import copy
 import ipaddress
@@ -34,6 +34,59 @@ TimeoutStartSec=60
 [Install]
 WantedBy=multi-user.target
 '''
+
+
+
+DELTA_LOGO = r""" 
+  ____   _____  _      _____    _
+ |  _ \ | ____|| |    |_   _|  / \
+ | | | ||  _|  | |      | |   / _ \
+ | |_| || |___ | |___   | |  / ___ \
+ |____/ |_____||_____|  |_| /_/   \_\
+"""
+
+
+def clear_screen():
+    """Start each menu page fresh, without disturbing non-interactive output."""
+    if sys.stdout.isatty() and os.environ.get('TERM', '') != 'dumb':
+        sys.stdout.write('\033[H\033[2J\033[3J')
+        sys.stdout.flush()
+
+
+def show_header(section):
+    print(paint(DELTA_LOGO, '1;96'))
+    print(paint('  ' + '=' * 50, '90'))
+    print(paint('  Telegram Channel : ', '36') + paint('@delta_vpn_1', '1;37'))
+    print(paint('  Telegram Support : ', '36') + paint('@delta_vpn12', '1;37'))
+    print(paint('  Developer        : ', '36') + paint('DELTA', '1;37'))
+
+    public_ip = default_public()
+    role = 'NOT CONFIGURED'
+    if CONFIG_FILE.exists():
+        try:
+            saved = config()
+            public_ip = saved['local_public']
+            role = saved['role'].upper()
+        except (OSError, ValueError, json.JSONDecodeError):
+            role = 'CONFIG ERROR'
+    print(paint('  Server IPv4      : ', '36') + paint(public_ip or 'Unknown', '1;37'))
+    print(paint('  Server Role      : ', '36') + paint(role, '1;37'))
+    print(paint('  ' + '=' * 50, '90'))
+    print('  ' + paint(section.upper(), '1;96'))
+    print(paint('  ' + '-' * 50, '90'))
+
+
+def new_page(section):
+    clear_screen()
+    show_header(section)
+
+
+def pause():
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            input('\n  Press Enter to continue...')
+        except EOFError:
+            pass
 
 
 def paint(message, ansi):
@@ -414,22 +467,31 @@ def edit_tunnel():
 
 def tunnel_settings():
     while True:
-        print('\n' + paint('========== Tunnel Settings ==========', '1;36'))
-        print('  1) Delete Tunnel')
-        print('  2) Edit Tunnel (change peer IPv4)')
-        print('  3) Show Configured Tunnels')
-        print('  4) Back to Main Menu')
-        choice = ask('Select an option')
+        new_page('Tunnel Settings')
+        print(paint('  1) Delete Tunnel', '1;31'))
+        print(paint('  2) Edit Tunnel (change peer IPv4)', '1;32'))
+        print(paint('  3) Show Configured Tunnels', '1;35'))
+        print(paint('  4) Back to Main Menu', '1;37'))
+        print()
+        choice = ask('  Select an option')
         if choice == '1':
+            new_page('Delete Tunnel')
             delete_tunnel()
+            pause()
         elif choice == '2':
+            new_page('Edit Tunnel')
             edit_tunnel()
+            pause()
         elif choice == '3':
+            new_page('Configured Tunnels')
             status()
+            pause()
         elif choice == '4':
             return
         else:
             warn('Invalid option.')
+            pause()
+
 
 
 def install_pasarguard():
@@ -535,29 +597,34 @@ def installation():
 
 def menu():
     while True:
-        print('\n' + paint('========================================', '1;36'))
-        print(paint('             RCLocalL Manager', '1;36'))
-        print(paint('========================================', '1;36'))
-        print('  1) Install Tunnel')
-        print('  2) Tunnel Settings')
-        print('  3) Install PasarGuard (Foreign only)')
-        print('  0) Exit')
-        choice = ask('Select an option')
+        new_page('Main Menu')
+        print(paint('  1) Install Tunnel', '1;32'))
+        print(paint('  2) Tunnel Settings', '1;31'))
+        print(paint('  3) Install PasarGuard (Foreign only)', '1;37'))
+        print(paint('  0) Exit', '1;37'))
+        print()
+        choice = ask('  Select an option')
         if choice == '1':
+            new_page('Install Tunnel')
             installation()
+            pause()
         elif choice == '2':
             tunnel_settings()
         elif choice == '3':
+            new_page('Install PasarGuard (Foreign only)')
             install_pasarguard()
+            pause()
         elif choice == '0':
             return
         else:
             warn('Invalid option.')
+            pause()
+
 
 
 def main():
     if os.geteuid() != 0:
-        fail('Run as root: sudo rclocall')
+        fail('Run as root: sudo delta')
         return 1
     try:
         command = sys.argv[1] if len(sys.argv) > 1 else 'menu'
@@ -570,7 +637,7 @@ def main():
         elif command == 'down':
             remove_managed()
         else:
-            fail('Usage: rclocall [menu|status|apply|down]')
+            fail('Usage: delta [menu|status|apply|down]')
             return 2
         return 0
     except (ValueError, RuntimeError, json.JSONDecodeError, OSError, subprocess.CalledProcessError) as error:
