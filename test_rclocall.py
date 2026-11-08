@@ -147,8 +147,8 @@ class MenuTests(unittest.TestCase):
              patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
             banner = module.render_delta_logo()
         self.assertIn('█', banner)
-        self.assertIn('\033[1;38;2;40;205;108m', banner)
-        self.assertIn('\033[38;2;8;91;57m', banner)
+        self.assertIn('\033[1;38;2;34;202;109m', banner)
+        self.assertIn('\033[38;2;7;70;47m', banner)
         self.assertEqual(len(banner.splitlines()), 11)
 
     def test_3d_delta_banner_is_solid_on_mobile_width(self):
@@ -162,8 +162,8 @@ class MenuTests(unittest.TestCase):
              patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((60, 24))):
             banner = module.render_delta_logo()
         self.assertIn('█', banner)
-        self.assertIn('▓', banner)
-        self.assertIn('▒', banner)
+        self.assertNotIn('▓', banner)
+        self.assertNotIn('▒', banner)
         self.assertEqual(len(banner.splitlines()), 11)
 
     def test_large_block_logo_fits_59_column_mobile(self):
@@ -182,7 +182,7 @@ class MenuTests(unittest.TestCase):
         plain = re.sub(r'\033\[[0-9;]*m', '', banner)
         self.assertTrue(all(len(row) <= 59 for row in plain.splitlines()))
         self.assertIn('██', plain)
-        self.assertIn('▓', plain)
+        self.assertNotIn('▓', plain)
 
     def test_compact_block_logo_fits_42_column_mobile(self):
         class Terminal:
@@ -201,6 +201,31 @@ class MenuTests(unittest.TestCase):
         self.assertTrue(all(len(row) <= 42 for row in plain.splitlines()))
         self.assertIn('█', plain)
         self.assertNotIn('|____/', plain)
+
+    def test_delta_fonts_have_equal_height_and_width_per_letter(self):
+        for variant, font in module.DELTA_FONTS.items():
+            expected_width = len(font['D'][0])
+            expected_height = len(font['D'])
+            for letter in 'DELTA':
+                self.assertEqual(len(font[letter]), expected_height, variant)
+                self.assertTrue(all(len(row) == expected_width for row in font[letter]),
+                                (variant, letter))
+
+    def test_t_is_centered_and_symmetrical(self):
+        for font in module.DELTA_FONTS.values():
+            stem = font['T'][2]
+            leading = len(stem) - len(stem.lstrip(' '))
+            trailing = len(stem) - len(stem.rstrip(' '))
+            self.assertEqual(leading, trailing)
+            self.assertEqual(font['T'][0], '#' * len(font['T'][0]))
+
+    def test_mobile_layout_fits_all_common_widths(self):
+        for columns in (37, 42, 47, 52, 56, 59, 60, 80):
+            layout = module.delta_logo_pixels(columns)
+            self.assertIsNotNone(layout, columns)
+            face, height = layout
+            self.assertEqual(max(x for x, y in face) + 5 <= columns, True)
+            self.assertIn(height, (7, 9))
 
     def test_not_tty_clear_screen_is_safe(self):
         with redirect_stdout(io.StringIO()) as output:
