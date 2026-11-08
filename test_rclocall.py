@@ -1,4 +1,6 @@
 import importlib.util
+import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import unittest
 from unittest.mock import patch, Mock
@@ -88,6 +90,54 @@ class ManagerTests(unittest.TestCase):
             module.install_pasarguard()
         confirm.assert_not_called()
         invoke.assert_not_called()
+
+
+class MenuTests(unittest.TestCase):
+    def test_header_shows_brand_contact_and_server(self):
+        output = io.StringIO()
+        with patch.object(module, 'default_public', return_value='167.233.221.152'), \
+             patch.object(module, 'CONFIG_FILE') as path, \
+             patch.object(module, 'config', return_value=sample()), \
+             redirect_stdout(output):
+            path.exists.return_value = True
+            module.show_header('Main Menu')
+        shown = output.getvalue()
+        for expected in ('DELTA', '@delta_vpn_1', '@delta_vpn12',
+                         'Telegram Channel', 'Telegram Support',
+                         '167.233.221.152', 'FOREIGN', 'MAIN MENU'):
+            self.assertIn(expected, shown)
+        self.assertNotIn('Datacenter', shown)
+        self.assertNotIn('github.com', shown)
+
+    def test_main_menu_can_open_settings_and_go_back(self):
+        output = io.StringIO()
+        with patch.object(module, 'new_page') as pages, \
+             patch.object(module, 'ask', side_effect=['2', '0']), \
+             patch.object(module, 'tunnel_settings') as settings, \
+             redirect_stdout(output):
+            module.menu()
+        settings.assert_called_once_with()
+        self.assertEqual(pages.call_count, 2)
+        self.assertIn('Install PasarGuard (Foreign only)', output.getvalue())
+
+    def test_submenu_status_and_return(self):
+        output = io.StringIO()
+        with patch.object(module, 'new_page') as pages, \
+             patch.object(module, 'ask', side_effect=['3', '4']), \
+             patch.object(module, 'status') as status, \
+             patch.object(module, 'pause'), \
+             redirect_stdout(output):
+            module.tunnel_settings()
+        status.assert_called_once_with()
+        self.assertEqual(pages.call_count, 3)
+        for expected in ('Delete Tunnel', 'Edit Tunnel', 'Show Configured Tunnels',
+                         'Back to Main Menu'):
+            self.assertIn(expected, output.getvalue())
+
+    def test_not_tty_clear_screen_is_safe(self):
+        with redirect_stdout(io.StringIO()) as output:
+            module.clear_screen()
+        self.assertEqual(output.getvalue(), '')
 
 
 if __name__ == '__main__':
