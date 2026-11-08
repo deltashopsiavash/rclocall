@@ -143,7 +143,7 @@ class MenuTests(unittest.TestCase):
                 return True
 
         with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size', return_value=(100, 24)), \
+             patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((100, 24))), \
              patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=False):
             banner = module.render_delta_logo()
         self.assertIn('█', banner)
@@ -159,7 +159,7 @@ class MenuTests(unittest.TestCase):
                 return True
 
         with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size', return_value=(60, 24)):
+             patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((60, 24))):
             banner = module.render_delta_logo()
         self.assertIn('|____/', banner)
         self.assertNotIn('█', banner)
