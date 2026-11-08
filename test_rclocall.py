@@ -135,97 +135,22 @@ class MenuTests(unittest.TestCase):
             self.assertIn(expected, output.getvalue())
 
 
-    def test_3d_delta_banner_uses_shaded_blocks_on_wide_terminals(self):
-        class Terminal:
-            encoding = 'utf-8'
+    def test_classic_logo_restored(self):
+        self.assertIn('____   _____', module.DELTA_LOGO)
+        self.assertIn('|____/ |_____', module.DELTA_LOGO)
+        self.assertNotIn('█', module.DELTA_LOGO)
+        self.assertEqual(len(module.DELTA_LOGO.strip('\n').splitlines()), 5)
 
-            def isatty(self):
-                return True
-
-        with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((100, 24))), \
-             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
-            banner = module.render_delta_logo()
-        self.assertIn('█', banner)
-        self.assertIn('\033[1;38;2;34;202;109m', banner)
-        self.assertIn('\033[38;2;7;70;47m', banner)
-        self.assertEqual(len(banner.splitlines()), 11)
-
-    def test_3d_delta_banner_is_solid_on_mobile_width(self):
-        class Terminal:
-            encoding = 'utf-8'
-
-            def isatty(self):
-                return True
-
-        with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((60, 24))):
-            banner = module.render_delta_logo()
-        self.assertIn('█', banner)
-        self.assertNotIn('▓', banner)
-        self.assertNotIn('▒', banner)
-        self.assertEqual(len(banner.splitlines()), 11)
-
-    def test_large_block_logo_fits_59_column_mobile(self):
-        class Terminal:
-            encoding = 'utf-8'
-
-            def isatty(self):
-                return True
-
-        with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size',
-                          return_value=module.os.terminal_size((59, 24))), \
-             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
-            banner = module.render_delta_logo()
-        import re
-        plain = re.sub(r'\033\[[0-9;]*m', '', banner)
-        self.assertTrue(all(len(row) <= 59 for row in plain.splitlines()))
-        self.assertIn('██', plain)
-        self.assertNotIn('▓', plain)
-
-    def test_compact_block_logo_fits_42_column_mobile(self):
-        class Terminal:
-            encoding = 'utf-8'
-
-            def isatty(self):
-                return True
-
-        with patch.object(module.sys, 'stdout', Terminal()), \
-             patch.object(module.shutil, 'get_terminal_size',
-                          return_value=module.os.terminal_size((42, 24))), \
-             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
-            banner = module.render_delta_logo()
-        import re
-        plain = re.sub(r'\033\[[0-9;]*m', '', banner)
-        self.assertTrue(all(len(row) <= 42 for row in plain.splitlines()))
-        self.assertIn('█', plain)
-        self.assertNotIn('|____/', plain)
-
-    def test_delta_fonts_have_equal_height_and_width_per_letter(self):
-        for variant, font in module.DELTA_FONTS.items():
-            expected_width = len(font['D'][0])
-            expected_height = len(font['D'])
-            for letter in 'DELTA':
-                self.assertEqual(len(font[letter]), expected_height, variant)
-                self.assertTrue(all(len(row) == expected_width for row in font[letter]),
-                                (variant, letter))
-
-    def test_t_is_centered_and_symmetrical(self):
-        for font in module.DELTA_FONTS.values():
-            stem = font['T'][2]
-            leading = len(stem) - len(stem.lstrip(' '))
-            trailing = len(stem) - len(stem.rstrip(' '))
-            self.assertEqual(leading, trailing)
-            self.assertEqual(font['T'][0], '#' * len(font['T'][0]))
-
-    def test_mobile_layout_fits_all_common_widths(self):
-        for columns in (37, 42, 47, 52, 56, 59, 60, 80):
-            layout = module.delta_logo_pixels(columns)
-            self.assertIsNotNone(layout, columns)
-            face, height = layout
-            self.assertEqual(max(x for x, y in face) + 5 <= columns, True)
-            self.assertIn(height, (7, 9))
+    def test_header_uses_classic_cyan_logo(self):
+        output = io.StringIO()
+        with patch.object(module, 'default_public', return_value='167.233.221.152'), \
+             patch.object(module, 'CONFIG_FILE') as path, \
+             patch.object(module, 'config', return_value=sample()), \
+             redirect_stdout(output):
+            path.exists.return_value = True
+            module.show_header('Main Menu')
+        self.assertIn('____   _____', output.getvalue())
+        self.assertIn('Telegram Channel', output.getvalue())
 
     def test_not_tty_clear_screen_is_safe(self):
         with redirect_stdout(io.StringIO()) as output:
