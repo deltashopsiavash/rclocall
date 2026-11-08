@@ -134,6 +134,36 @@ class MenuTests(unittest.TestCase):
                          'Back to Main Menu'):
             self.assertIn(expected, output.getvalue())
 
+
+    def test_3d_delta_banner_uses_shaded_blocks_on_wide_terminals(self):
+        class Terminal:
+            encoding = 'utf-8'
+
+            def isatty(self):
+                return True
+
+        with patch.object(module.sys, 'stdout', Terminal()), \
+             patch.object(module.shutil, 'get_terminal_size', return_value=(100, 24)), \
+             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=False):
+            banner = module.render_delta_logo()
+        self.assertIn('█', banner)
+        self.assertIn('\033[38;2;36;194;104m', banner)
+        self.assertIn('\033[38;2;7;69;45m', banner)
+        self.assertEqual(len(banner.splitlines()), 11)
+
+    def test_3d_delta_banner_has_narrow_terminal_fallback(self):
+        class Terminal:
+            encoding = 'utf-8'
+
+            def isatty(self):
+                return True
+
+        with patch.object(module.sys, 'stdout', Terminal()), \
+             patch.object(module.shutil, 'get_terminal_size', return_value=(60, 24)):
+            banner = module.render_delta_logo()
+        self.assertIn('|____/', banner)
+        self.assertNotIn('█', banner)
+
     def test_not_tty_clear_screen_is_safe(self):
         with redirect_stdout(io.StringIO()) as output:
             module.clear_screen()
