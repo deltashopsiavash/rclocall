@@ -147,11 +147,11 @@ class MenuTests(unittest.TestCase):
              patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
             banner = module.render_delta_logo()
         self.assertIn('█', banner)
-        self.assertIn('\033[38;2;36;194;104m', banner)
-        self.assertIn('\033[38;2;7;69;45m', banner)
+        self.assertIn('\033[1;38;2;40;205;108m', banner)
+        self.assertIn('\033[38;2;8;91;57m', banner)
         self.assertEqual(len(banner.splitlines()), 11)
 
-    def test_3d_delta_banner_has_narrow_terminal_fallback(self):
+    def test_3d_delta_banner_is_solid_on_mobile_width(self):
         class Terminal:
             encoding = 'utf-8'
 
@@ -161,8 +161,10 @@ class MenuTests(unittest.TestCase):
         with patch.object(module.sys, 'stdout', Terminal()), \
              patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((60, 24))):
             banner = module.render_delta_logo()
-        self.assertIn('|____/', banner)
-        self.assertNotIn('█', banner)
+        self.assertIn('█', banner)
+        self.assertIn('▓', banner)
+        self.assertIn('▒', banner)
+        self.assertEqual(len(banner.splitlines()), 11)
 
     def test_not_tty_clear_screen_is_safe(self):
         with redirect_stdout(io.StringIO()) as output:
