@@ -37,13 +37,84 @@ WantedBy=multi-user.target
 
 
 
-DELTA_LOGO = r""" 
+DELTA_FALLBACK = r"""
   ____   _____  _      _____    _
  |  _ \ | ____|| |    |_   _|  / \
  | | | ||  _|  | |      | |   / _ \
  | |_| || |___ | |___   | |  / ___ \
  |____/ |_____||_____|  |_| /_/   \_\
 """
+
+# Six-column pixel font: bold, readable on a normal 80-column SSH terminal.
+DELTA_FONT = {
+    'D': ('##### ', '##  ##', '##  ##', '##  ##', '##  ##',
+          '##  ##', '##  ##', '##  ##', '##### '),
+    'E': ('######', '##    ', '##    ', '##### ', '##### ',
+          '##    ', '##    ', '##    ', '######'),
+    'L': ('##    ', '##    ', '##    ', '##    ', '##    ',
+          '##    ', '##    ', '##    ', '######'),
+    'T': ('######', '######', '  ##  ', '  ##  ', '  ##  ',
+          '  ##  ', '  ##  ', '  ##  ', '  ##  '),
+    'A': (' #### ', '##  ##', '##  ##', '##  ##', '######',
+          '######', '##  ##', '##  ##', '##  ##'),
+}
+
+
+def render_delta_logo():
+    """3D block-letter banner with a green extruded edge and dark shadow.
+
+    Works in an ordinary Unicode SSH terminal; narrow/non-UTF-8 terminals
+    automatically use the smaller ASCII logo. No external fonts are needed.
+    """
+    encoding = (getattr(sys.stdout, 'encoding', None) or '').lower()
+    cols = shutil.get_terminal_size(fallback=(100, 24)).columns
+    if 'utf' not in encoding or cols < 76:
+        return paint(DELTA_FALLBACK, '1;32')
+
+    bitmap = [' '.join(DELTA_FONT[letter][row] for letter in 'DELTA')
+              for row in range(9)]
+    # Each pixel occupies two terminal columns, producing thick, square-ish
+    # letter strokes. A two-step down/right offset adds visible 3D depth.
+    face = {(x * 2 + dx, y)
+            for y, line in enumerate(bitmap)
+            for x, char in enumerate(line) if char == '#'
+            for dx in (0, 1)}
+    edge = {(x + 2, y + 1) for x, y in face}
+    shadow = {(x + 4, y + 2) for x, y in face}
+    width = max(x for x, _ in shadow) + 1
+    height = max(y for _, y in shadow) + 1
+    colors = {
+        'face': '\033[38;2;36;194;104m',
+        'edge': '\033[38;2;17;131;79m',
+        'shadow': '\033[38;2;7;69;45m',
+    }
+    use_color = (sys.stdout.isatty() and not os.environ.get('NO_COLOR')
+                 and os.environ.get('TERM', '') != 'dumb')
+    output = []
+    for y in range(height):
+        runs = []
+        previous_style = None
+        for x in range(width):
+            if (x, y) in face:
+                style = 'face'
+            elif (x, y) in edge:
+                style = 'edge'
+            elif (x, y) in shadow:
+                style = 'shadow'
+            else:
+                style = None
+
+            if style != previous_style and use_color:
+                runs.append(colors[style] if style else '\033[0m')
+            runs.append('█' if style else ' ')
+            previous_style = style
+
+        line = ''.join(runs).rstrip()
+        if use_color:
+            line += '\033[0m'
+        output.append('  ' + line)
+    return '\n'.join(output)
+
 
 
 def clear_screen():
@@ -54,7 +125,7 @@ def clear_screen():
 
 
 def show_header(section):
-    print(paint(DELTA_LOGO, '1;96'))
+    print(render_delta_logo())
     print(paint('  ' + '=' * 50, '90'))
     print(paint('  Telegram Channel : ', '36') + paint('@delta_vpn_1', '1;37'))
     print(paint('  Telegram Support : ', '36') + paint('@delta_vpn12', '1;37'))
