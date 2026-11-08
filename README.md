@@ -14,7 +14,7 @@ Run again at any time (opens the English menu):
 sudo rclocall
 ```
 
-The manager currently has one action: `1) Install Tunnel`. Select the local server role, enter its public IPv4, the number of remote peers, each peer public IPv4, and a **Shared Link ID** for each pair. The same Link ID must be entered on both ends of a tunnel, even when each end has a different number of peers. The server's public IP must actually be assigned to its network interface (providers using NAT may require an adapted setup).
+The main menu offers **1) Install Tunnel**, **2) Tunnel Settings**, **3) Install PasarGuard (Foreign only)**, and **0) Exit**. For installation, select the local server role, enter its public IPv4, the number of remote peers, each peer public IPv4, and a **Shared Link ID** for each pair. The same Link ID must be entered on both ends of a tunnel, even when each end has a different number of peers. The server's public IP must actually be assigned to its network interface (providers using NAT may require an adapted setup).
 
 The installer writes `/etc/rclocall/tunnels.json`, creates GRE interfaces named `rclg<ID>`, and installs `rclocall-gre.service` to recreate them after reboot. It validates local address conflicts and keeps dated backups when reconfiguring. The final display shows local/remote GRE IPs and green **CONNECTED** only after a successful ICMP ping. A **WAITING / NO REPLY** status does not automatically mean the GRE link is broken: the opposite end may not be configured, ICMP may be blocked, or GRE protocol 47 may be filtered by a host/provider firewall. It does **not** modify firewalls or routing of other services.
 
@@ -45,6 +45,28 @@ sudo systemctl status rclocall-gre.service
 sudo systemctl restart rclocall-gre.service
 ```
 
+
+## Tunnel Settings (menu option 2)
+
+The settings submenu is in English:
+
+1. **Delete Tunnel** — shows every configured Link ID together with its peer's public IPv4 and the local/remote GRE addresses. Select only the tunnel to delete. After confirmation only that connection is removed; other active connections remain running. If the last tunnel is deleted, the GRE boot service is disabled.
+2. **Edit Tunnel (change peer IPv4)** — select a Link ID from the same list, enter the new **peer public IPv4** and confirm. The tunnel keeps its Link ID and its **existing local/remote GRE IPs**. Only the selected tunnel is reconfigured; on the remote server, update the corresponding endpoint as well if needed.
+3. **Show Configured Tunnels** — lists the local public IP, each peer's public IPv4, Link ID, interface name, local/remote GRE IPs, and per-peer connectivity (green **CONNECTED** if a ping succeeds).
+4. **Back to Main Menu**.
+
+Existing configurations in /etc/rclocall/tunnels.json are preserved across upgrades; when a tunnel is edited or deleted, a timestamped backup is written before changes. The other working tunnel interfaces are not restarted during normal edits/deletes.
+
+## PasarGuard Node (main menu option 3)
+
+**Foreign servers only.** The menu displays Install PasarGuard (Foreign only) on every server, but refuses to run on a server with the saved **Iran** role (or without a saved server role). It asks for confirmation, downloads the official PasarGuard Node installer, validates the download and Bash syntax, then executes the equivalent of:
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pg-node.sh)" @ install
+```
+
+This runs third-party code as root and may change services on the Foreign VPS. Review the upstream PasarGuard script and use a suitable VPS backup beforehand. This does **not** install the PasarGuard panel on Iran or modify HAProxy directly.
+
 ## Network requirements and troubleshooting
 
 - Allow IPv4 **GRE protocol number 47**, not TCP/UDP port 47, in host and provider firewalls.
@@ -56,4 +78,4 @@ sudo systemctl restart rclocall-gre.service
 
 ## Security / operations
 
-The installer fetches source over HTTPS from the `main` branch. Review the source and optionally pin the URL to a commit SHA for production deployments. Files are installed under `/usr/local/lib/rclocall` and configuration stays in `/etc/rclocall` with restrictive permissions. Upgrading via the install command replaces only the manager code, not the saved GRE configuration. Re-running the wizard rewrites only the RCLocalL-managed GRE tunnels after confirmation. SSH/network configuration and existing HAProxy configs are left untouched.
+The installer fetches source over HTTPS from the `main` branch. Review the source and optionally pin the URL to a commit SHA for production deployments. Files are installed under `/usr/local/lib/rclocall` and configuration stays in `/etc/rclocall` with restrictive permissions. Upgrading via the install command replaces only the manager code, not the saved GRE configuration; run the same one-command installer again to update RCLocalL. Re-running the wizard rewrites only the RCLocalL-managed GRE tunnels after confirmation. SSH/network configuration and existing HAProxy configs are left untouched.
