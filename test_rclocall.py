@@ -166,6 +166,42 @@ class MenuTests(unittest.TestCase):
         self.assertIn('▒', banner)
         self.assertEqual(len(banner.splitlines()), 11)
 
+    def test_large_block_logo_fits_59_column_mobile(self):
+        class Terminal:
+            encoding = 'utf-8'
+
+            def isatty(self):
+                return True
+
+        with patch.object(module.sys, 'stdout', Terminal()), \
+             patch.object(module.shutil, 'get_terminal_size',
+                          return_value=module.os.terminal_size((59, 24))), \
+             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
+            banner = module.render_delta_logo()
+        import re
+        plain = re.sub(r'\033\[[0-9;]*m', '', banner)
+        self.assertTrue(all(len(row) <= 59 for row in plain.splitlines()))
+        self.assertIn('██', plain)
+        self.assertIn('▓', plain)
+
+    def test_compact_block_logo_fits_42_column_mobile(self):
+        class Terminal:
+            encoding = 'utf-8'
+
+            def isatty(self):
+                return True
+
+        with patch.object(module.sys, 'stdout', Terminal()), \
+             patch.object(module.shutil, 'get_terminal_size',
+                          return_value=module.os.terminal_size((42, 24))), \
+             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
+            banner = module.render_delta_logo()
+        import re
+        plain = re.sub(r'\033\[[0-9;]*m', '', banner)
+        self.assertTrue(all(len(row) <= 42 for row in plain.splitlines()))
+        self.assertIn('█', plain)
+        self.assertNotIn('|____/', plain)
+
     def test_not_tty_clear_screen_is_safe(self):
         with redirect_stdout(io.StringIO()) as output:
             module.clear_screen()
