@@ -63,6 +63,28 @@ Before modifying `/etc/haproxy/haproxy.cfg`, the installer keeps unrelated HAPro
 These SHA-256 values are calculated from the two uploaded DEBs. The GitHub binary blobs were checked against the uploaded files as well.
 
 
+## Offline installation (for Iranian VPS without GitHub access)
+
+Use the **one-file self-extracting** DELTA installer. Its archive includes the current DELTA manager, the HAProxy option-4 manager, and both exact SHA-256-verified Ubuntu 24.04 amd64 DEB files.
+
+1. Download [DELTA-offline.run](https://raw.githubusercontent.com/deltashopsiavash/rclocall/main/dist/DELTA-offline.run) **on your PC or phone with internet access**. You never need to connect to GitHub from the restricted VPS.
+2. Transfer that one file to the Iran VPS at /root/DELTA-offline.run using SFTP, WinSCP, Termius, or from another machine:
+   `scp DELTA-offline.run root@YOUR_SERVER_IP:/root/`
+3. SSH into the VPS, then run **one command**:
+
+   ```bash
+   sudo bash /root/DELTA-offline.run
+   ```
+
+   The self-extracting installer checks the checksums and Python syntax, installs DELTA and the bundled HAProxy DEB files into /usr/local/lib/rclocall, and opens the interactive English menu without any curl, GitHub or apt update calls.
+
+4. On subsequent logins: `sudo delta`. For a later update, simply upload a fresh DELTA-offline.run and run it again.
+
+**Compatibility:** Ubuntu/Debian with system commands python3, ip, ping, modprobe, systemctl, dpkg, dpkg-deb and sha256sum available. The included HAProxy 2.8.16 DEB packages require Ubuntu **24.04 x86_64/amd64** and the usual OS dependencies. Offline option 4 uses **dpkg -i** on the bundled files and never attempts network; if a required Ubuntu dependency is missing, the install reports the dependency error rather than going online. Other actions do not install the DEBs until HAProxy option 4 is selected.
+
+**Preserves state:** Existing /etc/rclocall/tunnels.json, GRE systemd service, local GRE addresses and HAProxy configuration are **not changed by installing or upgrading the menu itself**. Network services are modified only when you explicitly select an installation or tunnel settings action in the interactive menu.
+
+
 ## Link IDs and deterministic local addresses
 
 Link IDs 1 through 15000 uniquely identify GRE /30 subnets. Each pair's addresses depend on its Link ID, **not** on its public IP, so a Foreign server can be replaced without changing tunnel local IPs.
