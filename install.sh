@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 REPO_RAW='https://raw.githubusercontent.com/deltashopsiavash/rclocall/main'
 BIN_DIR='/usr/local/lib/rclocall'
-LAUNCHER='/usr/local/bin/rclocall'
+LAUNCHER='/usr/local/bin/delta'
+LEGACY_LAUNCHER='/usr/local/bin/rclocall'
 
 if [[ "$EUID" -ne 0 ]]; then
     echo 'Run as root: sudo bash install.sh' >&2
@@ -44,5 +45,9 @@ exec /usr/bin/python3 /usr/local/lib/rclocall/rclocall.py "$@"
 EOF
 chmod 0755 "$LAUNCHER"
 
-echo '[OK] RCLocalL installed. Opening manager...'
+# Keep the old entry point so existing GRE systemd services are uninterrupted.
+cp -f "$LAUNCHER" "$LEGACY_LAUNCHER"
+chmod 0755 "$LEGACY_LAUNCHER"
+
+echo '[OK] DELTA installed. Opening manager...'
 exec "$LAUNCHER" menu
