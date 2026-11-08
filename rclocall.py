@@ -37,126 +37,13 @@ WantedBy=multi-user.target
 
 
 
-# DELTA wordmark: fixed-width glyphs with consistent strokes and spacing.
-# Keep the large 8-column form on desktop and fit smaller variants on phones.
-# All shadow layers use the same solid block (no stippled/dotted artifacts).
-DELTA_FONTS = {
-    'large': {
-        'D': ('######  ', '##    ##', '##    ##', '##    ##',
-              '##    ##', '##    ##', '##    ##', '##    ##', '######  '),
-        'E': ('########', '##      ', '##      ', '######  ',
-              '######  ', '##      ', '##      ', '##      ', '########'),
-        'L': ('##      ', '##      ', '##      ', '##      ',
-              '##      ', '##      ', '##      ', '##      ', '########'),
-        'T': ('########', '########', '   ##   ', '   ##   ',
-              '   ##   ', '   ##   ', '   ##   ', '   ##   ', '   ##   '),
-        'A': ('  ####  ', ' ##  ## ', '##    ##', '##    ##',
-              '########', '########', '##    ##', '##    ##', '##    ##'),
-    },
-    'medium': {
-        'D': ('###### ', '##   ##', '##   ##', '##   ##',
-              '##   ##', '##   ##', '##   ##', '##   ##', '###### '),
-        'E': ('#######', '##     ', '##     ', '###### ',
-              '###### ', '##     ', '##     ', '##     ', '#######'),
-        'L': ('##     ', '##     ', '##     ', '##     ',
-              '##     ', '##     ', '##     ', '##     ', '#######'),
-        'T': ('#######', '#######', '  ###  ', '  ###  ',
-              '  ###  ', '  ###  ', '  ###  ', '  ###  ', '  ###  '),
-        'A': (' ##### ', '##   ##', '##   ##', '##   ##',
-              '#######', '#######', '##   ##', '##   ##', '##   ##'),
-    },
-    'compact': {
-        'D': ('##### ', '##  ##', '##  ##', '##  ##',
-              '##  ##', '##  ##', '##### '),
-        'E': ('######', '##    ', '##### ', '##### ',
-              '##    ', '##    ', '######'),
-        'L': ('##    ', '##    ', '##    ', '##    ',
-              '##    ', '##    ', '######'),
-        'T': ('######', '######', '  ##  ', '  ##  ',
-              '  ##  ', '  ##  ', '  ##  '),
-        'A': (' #### ', '##  ##', '##  ##', '######',
-              '##  ##', '##  ##', '##  ##'),
-    },
-    'small': {
-        'D': ('#### ', '#   #', '#   #', '#   #',
-              '#   #', '#   #', '#### '),
-        'E': ('#####', '##   ', '#### ', '#### ',
-              '##   ', '##   ', '#####'),
-        'L': ('##   ', '##   ', '##   ', '##   ',
-              '##   ', '##   ', '#####'),
-        'T': ('#####', '#####', ' ### ', ' ### ',
-              ' ### ', ' ### ', ' ### '),
-        'A': (' ### ', '## ##', '## ##', '#####',
-              '## ##', '## ##', '## ##'),
-    },
-}
-
-
-def delta_logo_pixels(columns):
-    """Choose the largest legible wordmark that fits the terminal width."""
-    designs = (('large', 3), ('medium', 2), ('compact', 2), ('small', 2))
-    for variant, gap in designs:
-        font = DELTA_FONTS[variant]
-        glyph_width = len(font['D'][0])
-        total_width = 2 + 5 * glyph_width + 4 * gap + 2
-        if total_width > columns:
-            continue
-        face = set()
-        for index, letter in enumerate('DELTA'):
-            for y, row in enumerate(font[letter]):
-                for x, char in enumerate(row):
-                    if char == '#':
-                        face.add((index * (glyph_width + gap) + x, y))
-        return face, len(font['D'])
-    return None
-
-
-def render_delta_logo():
-    """Crisp, solid 3D lettering with no dotted textures or uneven T stem."""
-    encoding = (getattr(sys.stdout, 'encoding', None) or '').lower()
-    if 'utf' not in encoding:
-        return paint('\n  DELTA\n', '1;32')
-    columns = shutil.get_terminal_size(fallback=(80, 24)).columns
-    design = delta_logo_pixels(columns)
-    if design is None:
-        return paint('\n  DELTA\n', '1;32')
-    face, height = design
-    rim = {(x + 1, y + 1) for x, y in face}
-    depth = {(x + 2, y + 2) for x, y in face}
-    width = max(x for x, _ in depth) + 1
-
-    colors = {
-        'front': '\033[1;38;2;34;202;109m',
-        'rim': '\033[38;2;18;133;77m',
-        'depth': '\033[38;2;7;70;47m',
-    }
-    color = (sys.stdout.isatty() and not os.environ.get('NO_COLOR')
-             and os.environ.get('TERM', '') != 'dumb')
-    output = []
-    for y in range(height + 2):
-        cells = []
-        for x in range(width):
-            if (x, y) in face:
-                cells.append('front')
-            elif (x, y) in rim:
-                cells.append('rim')
-            elif (x, y) in depth:
-                cells.append('depth')
-            else:
-                cells.append(None)
-        while cells and cells[-1] is None:
-            cells.pop()
-        line = ['  ']
-        current = None
-        for layer in cells:
-            if color and layer != current:
-                line.append(colors[layer] if layer else '\033[0m')
-            line.append('█' if layer else ' ')
-            current = layer
-        if color:
-            line.append('\033[0m')
-        output.append(''.join(line))
-    return '\n'.join(output)
+DELTA_LOGO = r"""
+  ____   _____  _      _____    _
+ |  _ \ | ____|| |    |_   _|  / \
+ | | | ||  _|  | |      | |   / _ \
+ | |_| || |___ | |___   | |  / ___ \
+ |____/ |_____||_____|  |_| /_/   \_\
+"""
 
 
 
@@ -169,7 +56,7 @@ def clear_screen():
 
 def show_header(section):
     rule_width = max(20, min(50, shutil.get_terminal_size(fallback=(80, 24)).columns - 4))
-    print(render_delta_logo())
+    print(paint(DELTA_LOGO, '1;96'))
     print(paint('  ' + '=' * rule_width, '90'))
     print(paint('  Telegram Channel : ', '36') + paint('@delta_vpn_1', '1;37'))
     print(paint('  Telegram Support : ', '36') + paint('@delta_vpn12', '1;37'))
@@ -186,7 +73,7 @@ def show_header(section):
             role = 'CONFIG ERROR'
     print(paint('  Server IPv4      : ', '36') + paint(public_ip or 'Unknown', '1;37'))
     print(paint('  Server Role      : ', '36') + paint(role, '1;37'))
-    print(paint('  ' + '=' * 50, '90'))
+    print(paint('  ' + '=' * rule_width, '90'))
     print('  ' + paint(section.upper(), '1;96'))
     print(paint('  ' + '-' * rule_width, '90'))
 
