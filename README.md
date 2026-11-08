@@ -20,11 +20,11 @@ The large **DELTA** terminal banner appears on every menu page, followed by Tele
 
 The installer writes `/etc/rclocall/tunnels.json`, creates GRE interfaces named `rclg<ID>`, and installs `rclocall-gre.service` to recreate them after reboot. It validates local address conflicts and keeps dated backups when reconfiguring. The final display shows local/remote GRE IPs and green **CONNECTED** only after a successful ICMP ping. A **WAITING / NO REPLY** status does not automatically mean the GRE link is broken: the opposite end may not be configured, ICMP may be blocked, or GRE protocol 47 may be filtered by a host/provider firewall. It does **not** modify firewalls or routing of other services.
 
-## DELTA 3D terminal logo
+## Classic DELTA terminal logo
 
-The DELTA wordmark uses a **redesigned, symmetrical block font**: identical letter heights, balanced spacing, a correctly centered `T`, bright green solid front faces, and two solid darker-green extrusion layers. There are **no dotted or dithered shadow characters**. No external fonts, packages or image assets are required. It scales to the actual UTF-8 terminal width: large (56+ columns), medium (47–55), compact (42–46), small (37–41), then a short green DELTA title for very narrow/non-UTF-8 terminals. Header separator lengths also adapt to screen width.
+The previous simple **cyan outline ASCII DELTA** header has been restored at the user's request. The solid green 3D logo, custom pixel fonts, and block shadows were removed. It renders as plain terminal text on desktop and mobile, without additional fonts or packages. Header details still include the Telegram channel/support, developer name and server IPv4, but not GitHub or datacenter details.
 
-The header still shows the Telegram channel/support, developer and server IPv4, without GitHub or datacenter details. Colored menu options and clean-screen transitions remain unchanged. Re-run the same install command to update only the program, without replacing saved GRE settings.
+Colored menu options and clear-screen transitions are retained. PasarGuard remains purple per the earlier menu preference. Updating via the install command does not replace saved GRE configuration or restart running tunnels.
 
 ## Link IDs and deterministic local addresses
 
