@@ -20,6 +20,12 @@ The large **DELTA** terminal banner appears on every menu page, followed by Tele
 
 The installer writes `/etc/rclocall/tunnels.json`, creates GRE interfaces named `rclg<ID>`, and installs `rclocall-gre.service` to recreate them after reboot. It validates local address conflicts and keeps dated backups when reconfiguring. The final display shows local/remote GRE IPs and green **CONNECTED** only after a successful ICMP ping. A **WAITING / NO REPLY** status does not automatically mean the GRE link is broken: the opposite end may not be configured, ICMP may be blocked, or GRE protocol 47 may be filtered by a host/provider firewall. It does **not** modify firewalls or routing of other services.
 
+## DELTA 3D terminal logo
+
+The large DELTA wordmark is rendered directly in the terminal using **bright green solid block letters**, a darker green extruded edge and a deeper shadow, similar to a 3D pixel-art heading. No font installation or external image is needed. It is designed to fit a normal 80-column UTF-8 SSH terminal. If the terminal is narrower than 76 columns or does not support UTF-8, it automatically uses a smaller ASCII DELTA logo instead.
+
+The header still shows the Telegram channel/support, developer and server IPv4, without GitHub or datacenter details. Colored menu options and clean-screen transitions remain unchanged. Re-run the same install command to update only the program, without replacing saved GRE settings.
+
 ## Link IDs and deterministic local addresses
 
 Link IDs 1 through 15000 uniquely identify GRE /30 subnets. Each pair's addresses depend on its Link ID, **not** on its public IP, so a Foreign server can be replaced without changing tunnel local IPs.
