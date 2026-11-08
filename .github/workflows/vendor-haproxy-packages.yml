@@ -1,0 +1,46 @@
+name: Vendor verified Ubuntu HAProxy DEBs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vendor-haproxy-packages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download exact packages and verify hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packages
+          curl -fL --retry 4 --connect-timeout 20 --max-time 120 \
+            https://eu.edge.kernel.org/ubuntu/ubuntu/pool/main/l/lua5.4/liblua5.4-0_5.4.6-3build2_amd64.deb \
+            -o packages/liblua5.4-0_5.4.6-3build2_amd64.deb
+          curl -fL --retry 4 --connect-timeout 20 --max-time 120 \
+            https://mirror-prg.webglobe.com/ubuntu/ubuntu/pool/main/h/haproxy/haproxy_2.8.16-0ubuntu0.24.04.2_amd64.deb \
+            -o packages/haproxy_2.8.16-0ubuntu0.24.04.2_amd64.deb
+          cd packages
+          echo '6a520259e5b06e86191a25af6d448387cdd2b3d291a0aa956ce272e84d071260  liblua5.4-0_5.4.6-3build2_amd64.deb' | sha256sum -c -
+          echo '05df8fef3a26e6535cfe579b0c99c3196e7d9e3390d9be707991d44ab75ffcd6  haproxy_2.8.16-0ubuntu0.24.04.2_amd64.deb' | sha256sum -c -
+          test "$(dpkg-deb -f liblua5.4-0_5.4.6-3build2_amd64.deb Architecture)" = amd64
+          test "$(dpkg-deb -f haproxy_2.8.16-0ubuntu0.24.04.2_amd64.deb Architecture)" = amd64
+      - name: Commit the validated DEB packages to repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/*.deb
+          if ! git diff --cached --quiet; then
+            git commit -m "vendor: exact verified Ubuntu 24.04 HAProxy and Lua DEBs [skip ci]"
+            git push origin HEAD:main
+          fi
