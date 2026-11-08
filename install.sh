@@ -35,7 +35,7 @@ mkdir -p "$BIN_DIR"
 new_file="$(mktemp "$BIN_DIR/.rclocall.XXXXXX")"
 trap 'rm -f "$new_file"' EXIT
 # Use a fresh URL each time: GitHub raw/CDN or terminal caches may serve old logos.
-cache_token="$(date +%s)-$"
+cache_token="$(date +%s%N)-$RANDOM"
 curl --fail --silent --show-error --location \
     --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
     --retry 2 --max-time 90 \
