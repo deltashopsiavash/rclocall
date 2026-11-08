@@ -22,7 +22,7 @@ The installer writes `/etc/rclocall/tunnels.json`, creates GRE interfaces named 
 
 ## DELTA 3D terminal logo
 
-The large DELTA wordmark is rendered directly in the terminal using **bright green solid block letters**, a darker green extruded edge and a deeper shadow, similar to a 3D pixel-art heading. No font installation or external image is needed. The banner automatically fits UTF-8 SSH terminals: a bold double-width 3D logo is supported down to 59 columns, and even narrower mobile windows get a compact **solid 3D block logo**, not the former thin-outline ASCII text. Extremely narrow (<36 columns) or non-UTF-8 terminals use a short green DELTA title.
+The DELTA wordmark uses a **redesigned, symmetrical block font**: identical letter heights, balanced spacing, a correctly centered `T`, bright green solid front faces, and two solid darker-green extrusion layers. There are **no dotted or dithered shadow characters**. No external fonts, packages or image assets are required. It scales to the actual UTF-8 terminal width: large (56+ columns), medium (47–55), compact (42–46), small (37–41), then a short green DELTA title for very narrow/non-UTF-8 terminals. Header separator lengths also adapt to screen width.
 
 The header still shows the Telegram channel/support, developer and server IPv4, without GitHub or datacenter details. Colored menu options and clean-screen transitions remain unchanged. Re-run the same install command to update only the program, without replacing saved GRE settings.
 
