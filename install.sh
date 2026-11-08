@@ -32,24 +32,30 @@ if (( ${#missing[@]} > 0 )); then
 fi
 
 mkdir -p "$BIN_DIR"
-new_file="$(mktemp "$BIN_DIR/.rclocall.XXXXXX")"
-trap 'rm -f "$new_file"' EXIT
-# Use a fresh URL each time: GitHub raw/CDN or terminal caches may serve old logos.
+staging="$(mktemp -d "$BIN_DIR/.delta-upgrade.XXXXXX")"
+trap 'rm -rf "$staging"' EXIT
 cache_token="$(date +%s%N)-$RANDOM"
-curl --fail --silent --show-error --location \
-    --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
-    --retry 2 --max-time 90 \
-    "$REPO_RAW/rclocall.py?delta_update=$cache_token" -o "$new_file"
 
-# Do not install a stale, three-dimensional DELTA version.
-if ! grep -Fq 'DELTA_LOGO = r"""' "$new_file" || grep -Eq 'DELTA_FONTS|def render_delta_logo' "$new_file"; then
-    echo '[ERROR] Unexpected/stale manager downloaded; leaving installed version untouched.' >&2
+for name in rclocall.py haproxy_manager.py; do
+    curl --fail --silent --show-error --location \
+        --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
+        --retry 2 --max-time 90 \
+        "$REPO_RAW/$name?delta_update=$cache_token" \
+        -o "$staging/$name"
+    python3 -m py_compile "$staging/$name"
+done
+
+# Reject unexpected/stale 3D versions before modifying installed code.
+if ! grep -Fq 'DELTA_LOGO = r"""' "$staging/rclocall.py" ||
+   grep -Eq 'DELTA_FONTS|def render_delta_logo' "$staging/rclocall.py"; then
+    echo '[ERROR] Outdated or unexpected DELTA source; installation cancelled.' >&2
     exit 1
 fi
-python3 -m py_compile "$new_file"
-chmod 0755 "$new_file"
-mv -f "$new_file" "$BIN_DIR/rclocall.py"
-echo '[OK] Verified original cyan DELTA outline logo (no 3D banner).'
+
+chmod 0755 "$staging/rclocall.py" "$staging/haproxy_manager.py"
+mv -f "$staging/rclocall.py" "$BIN_DIR/rclocall.py"
+mv -f "$staging/haproxy_manager.py" "$BIN_DIR/haproxy_manager.py"
+echo '[OK] Verified original cyan DELTA logo and HAProxy installer.'
 
 cat > "$LAUNCHER" <<'EOF'
 #!/usr/bin/env bash
