@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """RCLocalL: interactive, multi-peer IPv4 GRE tunnel manager for Ubuntu."""
 
+import copy
 import ipaddress
 import json
 import os
@@ -88,7 +89,7 @@ def validate(data):
         raise ValueError('Invalid role in configuration.')
     local_public = valid_ip(data.get('local_public', ''))
     links = data.get('links')
-    if not isinstance(links, list) or not 1 <= len(links) <= MAX_PEERS:
+    if not isinstance(links, list) or not 0 <= len(links) <= MAX_PEERS:
         raise ValueError('Invalid number of links.')
     ids, peers = set(), set()
     for link in links:
@@ -212,6 +213,9 @@ def status():
     print(f'\n  Server role: {data["role"].upper()}')
     print(f'  Public IP:   {data["local_public"]}')
     print_links(data)
+    if not data['links']:
+        warn('  No GRE tunnels are configured.')
+        return
     print('\n  Connectivity check:')
     successes = 0
     for link in sorted(data['links'], key=lambda x: x['id']):
@@ -236,12 +240,44 @@ def status():
         print('  Install the matching Link IDs on the other side and allow GRE protocol 47.')
 
 
+def setup_link(link, data):
+    """Create one GRE interface without disturbing other active links."""
+    name = interface(link['id'])
+    local, _ = link_addresses(link['id'], data['role'])
+    invoke('ip', 'tunnel', 'add', name, 'mode', 'gre',
+           'local', data['local_public'], 'remote', link['peer_public'],
+           'ttl', '255')
+    invoke('ip', 'link', 'set', name, 'mtu', '1400')
+    invoke('ip', 'addr', 'add', f'{local}/30', 'dev', name)
+    invoke('ip', 'link', 'set', name, 'up')
+
+
+def reconcile_links(before, after):
+    """Reconfigure only changed/removed links; preserve unaffected GRE sessions."""
+    old = {link['id']: link for link in before['links']} if before else {}
+    new = {link['id']: link for link in after['links']}
+    change_all = before is not None and (before['role'] != after['role'] or
+                                         before['local_public'] != after['local_public'])
+    changed_ids = {link_id for link_id in (old.keys() | new.keys())
+                   if change_all or old.get(link_id) != new.get(link_id)}
+    for link_id in sorted(old.keys() | new.keys()):
+        name = interface(link_id)
+        exists = Path('/sys/class/net', name).exists()
+        if link_id in changed_ids and exists:
+            invoke('ip', 'tunnel', 'del', name)
+            exists = False
+        if link_id in new and not exists:
+            setup_link(new[link_id], after)
+
+
 def save_config(data):
+    validate(data)
     CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(CONFIG_DIR, 0o700)
     previous = CONFIG_FILE.read_bytes() if CONFIG_FILE.exists() else None
+    previous_data = config() if previous is not None else None
     if previous is not None:
-        stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
         backup = CONFIG_DIR / f'tunnels.json.backup-{stamp}'
         backup.write_bytes(previous)
         os.chmod(backup, 0o600)
@@ -258,18 +294,173 @@ def save_config(data):
     try:
         SERVICE_FILE.write_text(SERVICE_TEXT, encoding='utf-8')
         invoke('systemctl', 'daemon-reload')
-        invoke('systemctl', 'enable', 'rclocall-gre.service')
-        invoke('systemctl', 'restart', 'rclocall-gre.service')
+        if not data['links']:
+            # On the last deletion, stop the service and remove managed links.
+            invoke('systemctl', 'disable', '--now', 'rclocall-gre.service', check=False)
+            remove_managed()
+        else:
+            invoke('modprobe', 'ip_gre')
+            invoke('systemctl', 'enable', 'rclocall-gre.service')
+            active = invoke('systemctl', 'is-active', '--quiet',
+                            'rclocall-gre.service', check=False)
+            if active.returncode == 0:
+                # Avoid systemctl restart: it drops every active GRE tunnel.
+                reconcile_links(previous_data, data)
+            else:
+                # Initial boot/start applies the saved configuration.
+                invoke('systemctl', 'start', 'rclocall-gre.service')
     except (OSError, subprocess.CalledProcessError):
         fail('Tunnel activation failed. Restoring previous configuration.')
         if previous is None:
             CONFIG_FILE.unlink(missing_ok=True)
             invoke('systemctl', 'disable', '--now', 'rclocall-gre.service', check=False)
+            remove_managed()
         else:
             CONFIG_FILE.write_bytes(previous)
             os.chmod(CONFIG_FILE, 0o600)
-            invoke('systemctl', 'restart', 'rclocall-gre.service', check=False)
+            if previous_data and previous_data['links']:
+                invoke('systemctl', 'enable', 'rclocall-gre.service', check=False)
+                invoke('systemctl', 'restart', 'rclocall-gre.service', check=False)
+                # Reconcile as a best-effort fallback when service is not active.
+                if invoke('systemctl', 'is-active', '--quiet',
+                          'rclocall-gre.service', check=False).returncode != 0:
+                    invoke('modprobe', 'ip_gre', check=False)
+                    try:
+                        reconcile_links(data, previous_data)
+                    except (OSError, subprocess.CalledProcessError):
+                        pass
+            else:
+                invoke('systemctl', 'disable', '--now', 'rclocall-gre.service', check=False)
+                remove_managed()
         raise
+
+
+def choose_tunnel(data):
+    """Display peer IPv4 and both GRE addresses before asking which one to edit."""
+    if not data['links']:
+        warn('No GRE tunnels are configured.')
+        return None
+    print_links(data)
+    ids = {link['id'] for link in data['links']}
+    while True:
+        selection = ask('Select Link ID (or b to go back)')
+        if selection.lower() in ('b', 'back', '0'):
+            return None
+        if selection.isdigit() and int(selection) in ids:
+            return next(link for link in data['links'] if link['id'] == int(selection))
+        warn('Select a Link ID listed above, or b to go back.')
+
+
+def delete_tunnel():
+    if not CONFIG_FILE.exists():
+        warn('No tunnel configuration found. Install Tunnel first.')
+        return
+    data = config()
+    print('\n  === Delete Tunnel ===')
+    link = choose_tunnel(data)
+    if link is None:
+        return
+    local, remote = link_addresses(link['id'], data['role'])
+    warn(f"Selected: Link {link['id']} - peer {link['peer_public']}")
+    print(f'  Local GRE: {local}  |  Remote GRE: {remote}')
+    if not yes('Delete ONLY this tunnel? The other GRE links will be preserved'):
+        warn('Cancelled; no changes made.')
+        return
+    updated = copy.deepcopy(data)
+    updated['links'] = [item for item in updated['links'] if item['id'] != link['id']]
+    save_config(updated)
+    okay(f"Deleted Link {link['id']} ({link['peer_public']}).")
+    if updated['links']:
+        status()
+    else:
+        okay('No links remain; the GRE boot service has been disabled.')
+
+
+def edit_tunnel():
+    if not CONFIG_FILE.exists():
+        warn('No tunnel configuration found. Install Tunnel first.')
+        return
+    data = config()
+    print('\n  === Edit Tunnel Peer IPv4 ===')
+    link = choose_tunnel(data)
+    if link is None:
+        return
+    local, remote = link_addresses(link['id'], data['role'])
+    print(f"  Current peer IPv4: {link['peer_public']}")
+    print(f'  Local GRE: {local}  |  Remote GRE: {remote} (unchanged)')
+    new_ip = ask_ipv4('New peer public IPv4', link['peer_public'])
+    if new_ip == link['peer_public']:
+        warn('No changes made.')
+        return
+    updated = copy.deepcopy(data)
+    for item in updated['links']:
+        if item['id'] == link['id']:
+            item['peer_public'] = new_ip
+            break
+    try:
+        validate(updated)
+    except ValueError as error:
+        warn(f'Cannot update tunnel: {error}')
+        return
+    print(f"  Link {link['id']}: {link['peer_public']} -> {new_ip}")
+    print(f'  GRE addresses remain: {local} -> {remote}')
+    if not yes('Save new peer IPv4 and reconnect ONLY this tunnel?'):
+        warn('Cancelled; no changes made.')
+        return
+    save_config(updated)
+    okay(f"Updated Link {link['id']}. Local GRE addresses are unchanged.")
+    status()
+
+
+def tunnel_settings():
+    while True:
+        print('\n' + paint('========== Tunnel Settings ==========', '1;36'))
+        print('  1) Delete Tunnel')
+        print('  2) Edit Tunnel (change peer IPv4)')
+        print('  3) Show Configured Tunnels')
+        print('  4) Back to Main Menu')
+        choice = ask('Select an option')
+        if choice == '1':
+            delete_tunnel()
+        elif choice == '2':
+            edit_tunnel()
+        elif choice == '3':
+            status()
+        elif choice == '4':
+            return
+        else:
+            warn('Invalid option.')
+
+
+def install_pasarguard():
+    print('\n  === Install PasarGuard Node (Foreign only) ===')
+    if not CONFIG_FILE.exists():
+        warn('Install a GRE tunnel as a Foreign server first to confirm server role.')
+        return
+    data = config()
+    if data['role'] != 'foreign':
+        warn('PasarGuard installation is available on Foreign servers ONLY.')
+        return
+    url = 'https://github.com/PasarGuard/scripts/raw/main/pg-node.sh'
+    info(f'  Source: {url}')
+    warn('This downloads and executes the official PasarGuard node installer as root.')
+    if not yes('Run the PasarGuard node installer now?'):
+        warn('Cancelled.')
+        return
+    with tempfile.TemporaryDirectory(prefix='rclocall-pg-') as directory:
+        script = Path(directory) / 'pg-node.sh'
+        invoke('curl', '--fail', '--location', '--silent', '--show-error',
+               '--retry', '2', '--max-time', '90', url, '--output', str(script))
+        if not script.exists() or script.stat().st_size == 0:
+            raise RuntimeError('PasarGuard installer download is empty.')
+        invoke('bash', '-n', str(script))
+        # Equivalent to: sudo bash -c "$(curl -sL URL)" @ install
+        result = subprocess.run(['bash', '-c', script.read_text(encoding='utf-8'),
+                                 '@', 'install'], check=False)
+    if result.returncode == 0:
+        okay('PasarGuard installer finished successfully.')
+    else:
+        warn(f'PasarGuard installer exited with code {result.returncode}. Check output above.')
 
 
 def installation():
@@ -348,10 +539,16 @@ def menu():
         print(paint('             RCLocalL Manager', '1;36'))
         print(paint('========================================', '1;36'))
         print('  1) Install Tunnel')
+        print('  2) Tunnel Settings')
+        print('  3) Install PasarGuard (Foreign only)')
         print('  0) Exit')
         choice = ask('Select an option')
         if choice == '1':
             installation()
+        elif choice == '2':
+            tunnel_settings()
+        elif choice == '3':
+            install_pasarguard()
         elif choice == '0':
             return
         else:
@@ -376,7 +573,7 @@ def main():
             fail('Usage: rclocall [menu|status|apply|down]')
             return 2
         return 0
-    except (ValueError, json.JSONDecodeError, OSError, subprocess.CalledProcessError) as error:
+    except (ValueError, RuntimeError, json.JSONDecodeError, OSError, subprocess.CalledProcessError) as error:
         fail(f'Error: {error}')
         return 1
     except (KeyboardInterrupt, EOFError):
