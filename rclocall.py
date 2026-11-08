@@ -37,79 +37,72 @@ WantedBy=multi-user.target
 
 
 
-DELTA_FALLBACK = r"""
-  ____   _____  _      _____    _
- |  _ \ | ____|| |    |_   _|  / \
- | | | ||  _|  | |      | |   / _ \
- | |_| || |___ | |___   | |  / ___ \
- |____/ |_____||_____|  |_| /_/   \_\
-"""
-
-# Six-column pixel font: bold, readable on a normal 80-column SSH terminal.
+# Compact 5-column font, designed to look bold even on narrow mobile SSH.
+# Every letter has nine rows; double-width cells are used whenever they fit.
 DELTA_FONT = {
-    'D': ('##### ', '##  ##', '##  ##', '##  ##', '##  ##',
-          '##  ##', '##  ##', '##  ##', '##### '),
-    'E': ('######', '##    ', '##    ', '##### ', '##### ',
-          '##    ', '##    ', '##    ', '######'),
-    'L': ('##    ', '##    ', '##    ', '##    ', '##    ',
-          '##    ', '##    ', '##    ', '######'),
-    'T': ('######', '######', '  ##  ', '  ##  ', '  ##  ',
-          '  ##  ', '  ##  ', '  ##  ', '  ##  '),
-    'A': (' #### ', '##  ##', '##  ##', '##  ##', '######',
-          '######', '##  ##', '##  ##', '##  ##'),
+    'D': ('#### ', '##  #', '##  #', '##  #', '##  #',
+          '##  #', '##  #', '##  #', '#### '),
+    'E': ('#####', '##   ', '##   ', '#### ', '#### ',
+          '##   ', '##   ', '##   ', '#####'),
+    'L': ('##   ', '##   ', '##   ', '##   ', '##   ',
+          '##   ', '##   ', '##   ', '#####'),
+    'T': ('#####', '#####', '  ## ', '  ## ', '  ## ',
+          '  ## ', '  ## ', '  ## ', '  ## '),
+    'A': (' ### ', '## ##', '## ##', '## ##', '#####',
+          '#####', '## ##', '## ##', '## ##'),
 }
 
 
 def render_delta_logo():
-    """3D block-letter banner with a green extruded edge and dark shadow.
+    """Draw filled embossed DELTA letters on mobile and desktop SSH terminals.
 
-    Works in an ordinary Unicode SSH terminal; narrow/non-UTF-8 terminals
-    automatically use the smaller ASCII logo. No external fonts are needed.
+    The previous small-width fallback used thin ASCII lines. This version
+    always uses solid Unicode blocks if UTF-8 is supported, even on mobile.
     """
     encoding = (getattr(sys.stdout, 'encoding', None) or '').lower()
-    cols = shutil.get_terminal_size(fallback=(100, 24)).columns
-    if 'utf' not in encoding or cols < 76:
-        return paint(DELTA_FALLBACK, '1;32')
+    cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+    if 'utf' not in encoding or cols < 36:
+        return paint('\n  DELTA\n', '1;32')
 
     bitmap = [' '.join(DELTA_FONT[letter][row] for letter in 'DELTA')
               for row in range(9)]
-    # Each pixel occupies two terminal columns, producing thick, square-ish
-    # letter strokes. A two-step down/right offset adds visible 3D depth.
-    face = {(x * 2 + dx, y)
+    scale = 2 if cols >= 64 else 1
+    face = {(x * scale + dx, y)
             for y, line in enumerate(bitmap)
             for x, char in enumerate(line) if char == '#'
-            for dx in (0, 1)}
-    edge = {(x + 2, y + 1) for x, y in face}
-    shadow = {(x + 4, y + 2) for x, y in face}
+            for dx in range(scale)}
+    # Two offset layers make the block letters look raised from the terminal.
+    edge = {(x + 1, y + 1) for x, y in face}
+    shadow = {(x + 3, y + 2) for x, y in face}
     width = max(x for x, _ in shadow) + 1
     height = max(y for _, y in shadow) + 1
-    colors = {
-        'face': '\033[38;2;36;194;104m',
-        'edge': '\033[38;2;17;131;79m',
-        'shadow': '\033[38;2;7;69;45m',
-    }
+
     use_color = (sys.stdout.isatty() and not os.environ.get('NO_COLOR')
                  and os.environ.get('TERM', '') != 'dumb')
+    colors = {
+        'face': '\033[1;38;2;40;205;108m',
+        'edge': '\033[38;2;22;143;83m',
+        'shadow': '\033[38;2;8;91;57m',
+    }
+    chars = {'face': '█', 'edge': '▓', 'shadow': '▒'}
     output = []
     for y in range(height):
-        runs = []
-        previous_style = None
+        parts = []
+        last = None
         for x in range(width):
             if (x, y) in face:
-                style = 'face'
+                layer = 'face'
             elif (x, y) in edge:
-                style = 'edge'
+                layer = 'edge'
             elif (x, y) in shadow:
-                style = 'shadow'
+                layer = 'shadow'
             else:
-                style = None
-
-            if style != previous_style and use_color:
-                runs.append(colors[style] if style else '\033[0m')
-            runs.append('█' if style else ' ')
-            previous_style = style
-
-        line = ''.join(runs).rstrip()
+                layer = None
+            if use_color and layer != last:
+                parts.append(colors[layer] if layer else '\033[0m')
+            parts.append(chars[layer] if layer else ' ')
+            last = layer
+        line = ''.join(parts).rstrip()
         if use_color:
             line += '\033[0m'
         output.append('  ' + line)
@@ -671,7 +664,7 @@ def menu():
         new_page('Main Menu')
         print(paint('  1) Install Tunnel', '1;32'))
         print(paint('  2) Tunnel Settings', '1;31'))
-        print(paint('  3) Install PasarGuard (Foreign only)', '1;37'))
+        print(paint('  3) Install PasarGuard (Foreign only)', '1;35'))
         print(paint('  0) Exit', '1;37'))
         print()
         choice = ask('  Select an option')
