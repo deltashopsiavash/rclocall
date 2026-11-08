@@ -34,10 +34,22 @@ fi
 mkdir -p "$BIN_DIR"
 new_file="$(mktemp "$BIN_DIR/.rclocall.XXXXXX")"
 trap 'rm -f "$new_file"' EXIT
-curl --fail --silent --show-error --location "$REPO_RAW/rclocall.py" -o "$new_file"
+# Use a fresh URL each time: GitHub raw/CDN or terminal caches may serve old logos.
+cache_token="$(date +%s)-$"
+curl --fail --silent --show-error --location \
+    --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
+    --retry 2 --max-time 90 \
+    "$REPO_RAW/rclocall.py?delta_update=$cache_token" -o "$new_file"
+
+# Do not install a stale, three-dimensional DELTA version.
+if ! grep -Fq 'DELTA_LOGO = r"""' "$new_file" || grep -Eq 'DELTA_FONTS|def render_delta_logo' "$new_file"; then
+    echo '[ERROR] Unexpected/stale manager downloaded; leaving installed version untouched.' >&2
+    exit 1
+fi
 python3 -m py_compile "$new_file"
 chmod 0755 "$new_file"
 mv -f "$new_file" "$BIN_DIR/rclocall.py"
+echo '[OK] Verified original cyan DELTA outline logo (no 3D banner).'
 
 cat > "$LAUNCHER" <<'EOF'
 #!/usr/bin/env bash
