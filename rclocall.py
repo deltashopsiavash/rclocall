@@ -64,13 +64,18 @@ def render_delta_logo():
     if 'utf' not in encoding or cols < 36:
         return paint('\n  DELTA\n', '1;32')
 
-    bitmap = [' '.join(DELTA_FONT[letter][row] for letter in 'DELTA')
-              for row in range(9)]
-    scale = 2 if cols >= 64 else 1
-    face = {(x * scale + dx, y)
-            for y, line in enumerate(bitmap)
-            for x, char in enumerate(line) if char == '#'
-            for dx in range(scale)}
+    # Keep each letter double-width on a 59-column mobile terminal:
+    # letter gaps stay 1 column instead of being stretched to 2.
+    scale = 2 if cols >= 59 else 1
+    face = set()
+    offset = 0
+    for letter in 'DELTA':
+        for y, line in enumerate(DELTA_FONT[letter]):
+            for x, char in enumerate(line):
+                if char == '#':
+                    for dx in range(scale):
+                        face.add((offset + x * scale + dx, y))
+        offset += 5 * scale + 1
     # Two offset layers make the block letters look raised from the terminal.
     edge = {(x + 1, y + 1) for x, y in face}
     shadow = {(x + 3, y + 2) for x, y in face}
