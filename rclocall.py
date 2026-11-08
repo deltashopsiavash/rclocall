@@ -597,12 +597,20 @@ def installation():
     status()
 
 
+def install_haproxy():
+    """Iran-only HAProxy setup; backend comes from the saved Foreign GRE IP."""
+    from haproxy_manager import setup
+    data = config() if CONFIG_FILE.exists() else None
+    setup(data, link_addresses)
+
+
 def menu():
     while True:
         new_page('Main Menu')
         print(paint('  1) Install Tunnel', '1;32'))
         print(paint('  2) Tunnel Settings', '1;31'))
         print(paint('  3) Install PasarGuard (Foreign only)', '1;35'))
+        print(paint('  4) Install HAProxy (Iran only)', '1;36'))
         print(paint('  0) Exit', '1;37'))
         print()
         choice = ask('  Select an option')
@@ -615,6 +623,10 @@ def menu():
         elif choice == '3':
             new_page('Install PasarGuard (Foreign only)')
             install_pasarguard()
+            pause()
+        elif choice == '4':
+            new_page('Install HAProxy (Iran only)')
+            install_haproxy()
             pause()
         elif choice == '0':
             return
