@@ -1,0 +1,35 @@
+name: Build DELTA Offline Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rclocall.py'
+      - 'haproxy_manager.py'
+      - 'install-offline.sh'
+      - 'scripts/build-offline.sh'
+      - 'packages/**'
+      - '.github/workflows/build-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-offline-bundle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build and verify standalone offline installer
+        run: bash scripts/build-offline.sh
+      - name: Commit offline executable to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/DELTA-offline.run
+          if ! git diff --cached --quiet; then
+            git commit -m "dist: refresh one-file DELTA offline installer [skip ci]"
+            git push origin HEAD:main
+          fi
