@@ -144,7 +144,7 @@ class MenuTests(unittest.TestCase):
 
         with patch.object(module.sys, 'stdout', Terminal()), \
              patch.object(module.shutil, 'get_terminal_size', return_value=module.os.terminal_size((100, 24))), \
-             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=False):
+             patch.dict(module.os.environ, {'TERM': 'xterm-256color'}, clear=True):
             banner = module.render_delta_logo()
         self.assertIn('█', banner)
         self.assertIn('\033[38;2;36;194;104m', banner)
